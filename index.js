@@ -21,14 +21,19 @@ const options = {
   border: '10mm',
 }
 
-const courseQuestion = [
-  {
-    type: 'list',
-    name: 'course',
-    message: 'Choose one of the following courses:',
-    choices: ['mobile', 'oosd'],
-  },
-]
+const courseQuestion = {
+  type: 'list',
+  name: 'course',
+  message: 'Choose one of the following courses:',
+  choices: ['mobile', 'oosd'],
+}
+
+const processQuestion = {
+  type: 'list',
+  name: 'process',
+  message: 'Choose one of the following processes:',
+  choices: ['generate pdf', 'email pdf', 'merge pdf'],
+}
 
 const { oosd, mobile } = data
 
@@ -54,7 +59,7 @@ prompt(courseQuestion).then((answer) => {
   }
   readFile('credentials.json', (err, content) => {
     if (err) return console.log(`Error loading client secret file: ${err}`)
-    authorize(JSON.parse(content), generatePDF)
+    authorize(JSON.parse(content), runProcess)
   })
 })
 
@@ -100,7 +105,7 @@ const getNewToken = (oAuth2Client, callback) => {
   })
 }
 
-const generatePDF = (auth) => {
+const runProcess = (auth) => {
   const sheets = google.sheets({ version: 'v4', auth })
   sheets.spreadsheets.values.get(
     {
@@ -128,23 +133,44 @@ const generatePDF = (auth) => {
         console.log('No data found.')
       }
 
-      const html = readFileSync('./public/template.html', 'utf8')
-      studentData.map((data) => {
-        const firstName = data.first_name.toLowerCase()
-        const lastName = data.last_name.toLowerCase()
-        const filename = `./${outputDirectory}-${firstName}-${lastName}-output.pdf`
-        const document = {
-          html: html,
-          data: {
-            data: [data],
-          },
-          path: filename,
+      prompt(processQuestion).then((answer) => {
+        const { process } = answer
+        switch (process) {
+          case 'generate pdf':
+            generatePDF(studentData)
+            break
+          case 'email pdf':
+            emailPDF()
+            break
+          case 'merge pdf':
+            mergePDF()
+            break
         }
-        console.log(`Generating PDF file for ${firstName} ${lastName}.`.green)
-        pdf.create(document, options)
-        console.log(`PDF file generated for ${firstName} ${lastName}.`.blue)
       })
-      console.log('Complete.'.green)
     }
   )
 }
+
+const generatePDF = (studentData) => {
+  const html = readFileSync('./public/template.html', 'utf8')
+  studentData.map((data) => {
+    const firstName = data.first_name.toLowerCase()
+    const lastName = data.last_name.toLowerCase()
+    const filename = `./${outputDirectory}-${firstName}-${lastName}-output.pdf`
+    const document = {
+      html: html,
+      data: {
+        data: [data],
+      },
+      path: filename,
+    }
+    console.log(`Generating PDF file for ${firstName} ${lastName}.`.green)
+    pdf.create(document, options)
+    console.log(`PDF file generated for ${firstName} ${lastName}.`.blue)
+  })
+  console.log('Complete.'.green)
+}
+
+const emailPDF = () => console.log('email')
+
+const mergePDF = () => console.log('merge')

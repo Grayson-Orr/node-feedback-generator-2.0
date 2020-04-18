@@ -6,10 +6,11 @@ const {
   writeFile,
 } = require('fs')
 const readline = require('readline')
-const { google } = require('googleapis')
-const pdf = require('pdf-creator-node')
-const { prompt } = require('inquirer')
 require('colors')
+const { google } = require('googleapis')
+const { prompt } = require('inquirer')
+const nodeoutlook = require('nodejs-nodemailer-outlook')
+const pdf = require('pdf-creator-node')
 const data = require('./data.json')
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
@@ -35,7 +36,7 @@ const processQuestion = {
   choices: ['generate pdf', 'email pdf', 'merge pdf'],
 }
 
-const { oosd, mobile } = data
+const { oosd, mobile, email, password } = data
 
 let courseName = ''
 let outputDirectory = ''
@@ -140,7 +141,7 @@ const runProcess = (auth) => {
             generatePDF(studentData)
             break
           case 'email pdf':
-            emailPDF()
+            emailPDF(studentData)
             break
           case 'merge pdf':
             mergePDF()
@@ -168,9 +169,41 @@ const generatePDF = (studentData) => {
     pdf.create(document, options)
     console.log(`PDF file generated for ${firstName} ${lastName}.`.blue)
   })
-  console.log('Complete.'.green)
 }
 
-const emailPDF = () => console.log('email')
+const emailPDF = (studentData) => {
+  let interval = 7500
+  studentData.map((data, idx) => {
+    const firstName = data.first_name.toLowerCase()
+    const lastName = data.last_name.toLowerCase()
+    const filename = `./${outputDirectory}-${firstName}-${lastName}-output.pdf`
+    setTimeout((_) => {
+      console.log(`Emailing PDF file to ${firstName} ${lastName}.`.green)
+      nodeoutlook.sendEmail({
+        auth: {
+          user: email,
+          pass: password,
+        },
+        from: email,
+        to: `orrgl1@student.op.ac.nz`,
+        subject: 'Results',
+        html: `Kia ora, <br /> <br />
+        I have attached your final results. Your results will be released officially on EBS in the next day or two. I would like to personally thank you for the semester. I have thoroughly enjoyed the experience and hope you have learned something during this time. Enjoy yours holidays and take care of yourself. <br /> <br />
+        Ngā mihi nui, <br /> <br />
+        Grayson Orr`,
+        attachments: [
+          {
+            path: filename,
+          },
+        ],
+        onError: (err) => console.log(err),
+        onSuccess: (_) => {
+          console.log(`PDF file emailed to ${firstName} ${lastName}.`.blue)
+        },
+      })
+    }, idx * interval)
+  })
+  
+}
 
 const mergePDF = () => console.log('merge')

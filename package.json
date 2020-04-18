@@ -20,6 +20,7 @@
     "colors": "^1.4.0",
     "googleapis": "^39.2.0",
     "inquirer": "^7.1.0",
+    "nodejs-nodemailer-outlook": "^1.2.3",
     "pdf-creator-node": "^1.4.1"
   }
 }

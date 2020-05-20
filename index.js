@@ -9,7 +9,7 @@ const readline = require('readline')
 require('colors')
 const { google } = require('googleapis')
 const { prompt } = require('inquirer')
-const nodeoutlook = require('nodejs-nodemailer-outlook')
+const { sendEmail } = require('nodejs-nodemailer-outlook')
 const pdf = require('pdf-creator-node')
 const data = require('./data.json')
 
@@ -26,7 +26,7 @@ const courseQuestion = {
   type: 'list',
   name: 'course',
   message: 'Choose one of the following courses:',
-  choices: ['mobile', 'oosd'],
+  choices: ['prog-four', 'mobile', 'oosd'],
 }
 
 const processQuestion = {
@@ -36,26 +36,38 @@ const processQuestion = {
   choices: ['generate pdf', 'email pdf', 'merge pdf'],
 }
 
-const { oosd, mobile, email, password } = data
+const { prog_four, oosd, mobile, email, password } = data
 
 let courseName = ''
 let outputDirectory = ''
 let spreadsheetId = ''
+let template = ''
 
 prompt(courseQuestion).then((answer) => {
   const { course } = answer
   if (!existsSync(course)) mkdirSync(course)
   switch (course) {
+    case 'prog-four':
+      courseName = 'IN628 Programming 4'
+      outputDirectory = `${prog_four.output_directory}/${course}`
+      spreadsheetId = prog_four.spreadsheet_id
+      range = prog_four.range
+      template = 'prog-4'
+      break
     case 'mobile':
       courseName =
         'IN721: Design and Development of Applications for Mobile Devices'
       outputDirectory = `${mobile.output_directory}/${course}`
       spreadsheetId = mobile.spreadsheet_id
+      range = mobile.range
+      template = 'template'
       break
     case 'oosd':
       courseName = 'IN710: Object-Oriented Systems Development'
       outputDirectory = `${oosd.output_directory}/${course}`
       spreadsheetId = oosd.spreadsheet_id
+      range = oosd.range
+      template = 'template'
       break
   }
   readFile('credentials.json', (err, content) => {
@@ -111,7 +123,7 @@ const runProcess = (auth) => {
   sheets.spreadsheets.values.get(
     {
       spreadsheetId: spreadsheetId,
-      range: 'overall!A2:I17',
+      range: range,
     },
     (err, res) => {
       if (err) return console.log(`The API returned an error: ${err}`)
@@ -119,16 +131,22 @@ const runProcess = (auth) => {
       const studentData = []
       if (rows.length) {
         rows.map((row) => {
-          studentData.push({
+          let obj = {
+            course_name: courseName,
             first_name: row[0],
             last_name: row[1],
             email_address: row[2],
-            exam_percentage: row[3],
-            software_percentage: row[5],
-            overall_percentage: row[7],
-            overall_grade: row[8],
-            course_name: courseName,
-          })
+            overall_percentage: row[3],
+            overall_grade: row[4],
+            exam_percentage: row[5],
+            software_percentage: row[7],
+          }
+          if (courseName == 'IN628 Programming 4') {
+            obj.checkpoint_percentage = row[9]
+            studentData.push(obj)
+          } else {
+            studentData.push(obj)
+          }
         })
       } else {
         console.log('No data found.')
@@ -153,11 +171,11 @@ const runProcess = (auth) => {
 }
 
 const generatePDF = (studentData) => {
-  const html = readFileSync('./public/template.html', 'utf8')
+  const html = readFileSync(`./public/${template}.html`, 'utf8')
   studentData.map((data) => {
     const firstName = data.first_name.toLowerCase()
     const lastName = data.last_name.toLowerCase()
-    const filename = `./${outputDirectory}-${firstName}-${lastName}-output.pdf`
+    const filename = `./${outputDirectory}-${firstName}-${lastName}-results.pdf`
     const document = {
       html: html,
       data: {
@@ -176,19 +194,19 @@ const emailPDF = (studentData) => {
   studentData.map((data, idx) => {
     const firstName = data.first_name.toLowerCase()
     const lastName = data.last_name.toLowerCase()
-    const filename = `./${outputDirectory}-${firstName}-${lastName}-output.pdf`
+    const filename = `./${outputDirectory}-${firstName}-${lastName}-results.pdf`
     setTimeout((_) => {
       console.log(`Emailing PDF file to ${firstName} ${lastName}.`.green)
-      nodeoutlook.sendEmail({
+      sendEmail({
         auth: {
           user: email,
           pass: password,
         },
         from: email,
-        to: `orrgl1@student.op.ac.nz`,
+        to: data.email_address.toLowerCase(),
         subject: 'Results',
         html: `Kia ora, <br /> <br />
-        I have attached your final results. Your results will be released officially on EBS in the next day or two. I would like to personally thank you for the semester. I have thoroughly enjoyed the experience and hope you have learned something during this time. Enjoy yours holidays and take care of yourself. <br /> <br />
+        I have attached your results for this course. <br /> <br />
         Ngā mihi nui, <br /> <br />
         Grayson Orr`,
         attachments: [
@@ -203,7 +221,6 @@ const emailPDF = (studentData) => {
       })
     }, idx * interval)
   })
-  
 }
 
 const mergePDF = () => console.log('merge')

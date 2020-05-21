@@ -10,6 +10,7 @@ require('colors')
 const { google } = require('googleapis')
 const { prompt } = require('inquirer')
 const { sendEmail } = require('nodejs-nodemailer-outlook')
+const pdfMerge = require('pdfmerge')
 const pdf = require('pdf-creator-node')
 const data = require('./data.json')
 
@@ -48,26 +49,25 @@ prompt(courseQuestion).then((answer) => {
   if (!existsSync(course)) mkdirSync(course)
   switch (course) {
     case 'prog-four':
-      courseName = 'IN628 Programming 4'
+      courseName = prog_four.name
       outputDirectory = `${prog_four.output_directory}/${course}`
       spreadsheetId = prog_four.spreadsheet_id
       range = prog_four.range
-      template = 'prog-4'
+      template = 'second-year'
       break
     case 'mobile':
-      courseName =
-        'IN721: Design and Development of Applications for Mobile Devices'
+      courseName = mobile.name
       outputDirectory = `${mobile.output_directory}/${course}`
       spreadsheetId = mobile.spreadsheet_id
       range = mobile.range
-      template = 'template'
+      template = 'third-year'
       break
     case 'oosd':
-      courseName = 'IN710: Object-Oriented Systems Development'
+      courseName = oosd.name
       outputDirectory = `${oosd.output_directory}/${course}`
       spreadsheetId = oosd.spreadsheet_id
       range = oosd.range
-      template = 'template'
+      template = 'third-year'
       break
   }
   readFile('credentials.json', (err, content) => {
@@ -162,7 +162,7 @@ const runProcess = (auth) => {
             emailPDF(studentData)
             break
           case 'merge pdf':
-            mergePDF()
+            mergePDF(studentData)
             break
         }
       })
@@ -206,7 +206,7 @@ const emailPDF = (studentData) => {
         to: data.email_address.toLowerCase(),
         subject: 'Results',
         html: `Kia ora, <br /> <br />
-        I have attached your results for this course. <br /> <br />
+        I have attached your course results for ${courseName}. <br /> <br />
         Ngā mihi nui, <br /> <br />
         Grayson Orr`,
         attachments: [
@@ -223,4 +223,24 @@ const emailPDF = (studentData) => {
   })
 }
 
-const mergePDF = () => console.log('merge')
+const mergePDF = (studentData) =>  {
+    let interval = 7500
+    studentData.map((data, idx) => {
+      const firstName = data.first_name.toLowerCase()
+      const lastName = data.last_name.toLowerCase()
+      setTimeout((_) => {
+        console.log(`Merging PDF file for ${firstName} ${lastName}.`.green)
+        pdfMerge(
+          [
+            `./${outputDirectory}-${firstName}-${lastName}-results.pdf`,
+            `./prog-four/01-assessment-${firstName}-${lastName}.pdf`,
+          ],
+          `./${outputDirectory}-${firstName}-${lastName}-final.pdf`
+        )
+          .then((_) =>
+            console.log(`PDF files merged for ${firstName} ${lastName}.`.blue)
+          )
+          .catch((err) => console.log(err))
+      }, idx * interval)
+    })
+}

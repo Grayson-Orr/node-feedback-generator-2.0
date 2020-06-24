@@ -50,21 +50,21 @@ prompt(courseQuestion).then((answer) => {
   switch (course) {
     case 'prog-four':
       courseName = prog_four.name
-      outputDirectory = `${prog_four.output_directory}/${course}`
+      outputDirectory = prog_four.output_directory
       spreadsheetId = prog_four.spreadsheet_id
       range = prog_four.range
       template = 'second-year'
       break
     case 'mobile':
       courseName = mobile.name
-      outputDirectory = `${mobile.output_directory}/${course}`
+      outputDirectory = mobile.output_directory
       spreadsheetId = mobile.spreadsheet_id
       range = mobile.range
       template = 'third-year'
       break
     case 'oosd':
       courseName = oosd.name
-      outputDirectory = `${oosd.output_directory}/${course}`
+      outputDirectory = oosd.output_directory
       spreadsheetId = oosd.spreadsheet_id
       range = oosd.range
       template = 'third-year'
@@ -136,15 +136,18 @@ const runProcess = (auth) => {
             first_name: row[0],
             last_name: row[1],
             email_address: row[2],
-            overall_percentage: row[3],
-            overall_grade: row[4],
-            exam_percentage: row[5],
-            software_percentage: row[7],
+            person_code: row[3],
+            overall_percentage: row[4],
+            overall_grade: row[5]
           }
           if (courseName == 'IN628 Programming 4') {
-            obj.checkpoint_percentage = row[9]
+            obj.checkpoint_percentage = row[6]
+            obj.software_percentage = row[8]
+            obj.exam_percentage = row[10]
             studentData.push(obj)
           } else {
+            obj.exam_percentage = row[6]
+            obj.software_percentage = row[8]
             studentData.push(obj)
           }
         })
@@ -194,7 +197,7 @@ const emailPDF = (studentData) => {
   studentData.map((data, idx) => {
     const firstName = data.first_name.toLowerCase()
     const lastName = data.last_name.toLowerCase()
-    const filename = `./${outputDirectory}-${firstName}-${lastName}-results.pdf`
+    const filename = `./${outputDirectory}/${outputDirectory}-${firstName}-${lastName}-final.pdf`
     setTimeout((_) => {
       console.log(`Emailing PDF file to ${firstName} ${lastName}.`.green)
       sendEmail({
@@ -204,9 +207,9 @@ const emailPDF = (studentData) => {
         },
         from: email,
         to: data.email_address.toLowerCase(),
-        subject: 'Results',
-        html: `Kia ora, <br /> <br />
-        I have attached your course results for ${courseName}. <br /> <br />
+        subject: `${courseName} Final Results`,
+        html: `Kia ora ${data.first_name}, <br /> <br />
+        I have attached your final results for ${courseName}. Enjoy your break and stay safe. <br /> <br />
         Ngā mihi nui, <br /> <br />
         Grayson Orr`,
         attachments: [
@@ -232,8 +235,11 @@ const mergePDF = (studentData) =>  {
         console.log(`Merging PDF file for ${firstName} ${lastName}.`.green)
         pdfMerge(
           [
-            `./${outputDirectory}-${firstName}-${lastName}-results.pdf`,
-            `./prog-four/01-assessment-${firstName}-${lastName}.pdf`,
+            `./${outputDirectory}/${outputDirectory}-${firstName}-${lastName}-results.pdf`,
+            `./${outputDirectory}/01-assessment-${firstName}-${lastName}.pdf`,
+            `./${outputDirectory}/02-assessment-${firstName}-${lastName}.pdf`,
+            `./${outputDirectory}/exam-${firstName}-${lastName}.pdf`,
+            `./${outputDirectory}/practicals-${firstName}-${lastName}.pdf`,
           ],
           `./${outputDirectory}-${firstName}-${lastName}-final.pdf`
         )

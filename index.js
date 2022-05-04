@@ -4,72 +4,75 @@ const {
   readFile,
   readFileSync,
   writeFile,
+  writeFileSync,
 } = require('fs')
+const { resolve } = require('path')
 const readline = require('readline')
 require('colors')
 const { google } = require('googleapis')
 const { prompt } = require('inquirer')
 const { sendEmail } = require('nodejs-nodemailer-outlook')
-const pdfMerge = require('pdfmerge')
-const pdf = require('pdf-creator-node')
+const PZ = require('pizzip')
+const DocxTemp = require('docxtemplater')
 const data = require('./data.json')
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 const TOKEN_PATH = 'token.json'
 
-const options = {
-  format: 'A4',
-  orientation: 'portrait',
-  border: '10mm',
-}
-
 const courseQuestion = {
   type: 'list',
   name: 'course',
   message: 'Choose one of the following courses:',
-  choices: ['prog-four', 'mobile', 'oosd'],
+  choices: ['id607001', 'id721001', 'id737001'],
+}
+
+const assessmentQuestion = {
+  type: 'list',
+  name: 'assessment',
+  message: 'Choose one of the following assessments:',
+  choices: ['a1', 'a2', 'a3', 'overall'],
 }
 
 const processQuestion = {
   type: 'list',
   name: 'process',
   message: 'Choose one of the following processes:',
-  choices: ['generate pdf', 'email pdf', 'merge pdf'],
+  choices: ['generate word docx', 'email pdf'],
 }
 
-const { prog_four, oosd, mobile, email, password } = data
+const {
+  email,
+  password
+} = data
 
-let courseName = ''
-let outputDirectory = ''
-let spreadsheetId = ''
-let template = ''
+let courseCode
+let assessmentNum
 
-prompt(courseQuestion).then((answer) => {
-  const { course } = answer
+let outputDirectory
+let courseName
+let spreadsheetId
+let spreadsheetRange
+let assessmentName
+let assessmentWordDocxName
+
+prompt([courseQuestion, assessmentQuestion]).then((answer) => {
+  const { course, assessment } = answer
+
+  courseCode = course
+  assessmentNum = assessment
+
+  const { output_directory, course_name, spreadsheet_id } = data[courseCode]
+  const { assessment_name, spreadsheet_range, word_docx_name } = data[courseCode][assessmentNum]
+
+  outputDirectory = output_directory
+  courseName = course_name
+  spreadsheetId = spreadsheet_id
+  spreadsheetRange = spreadsheet_range
+  assessmentName = assessment_name
+  assessmentWordDocxName = word_docx_name
+
   if (!existsSync(course)) mkdirSync(course)
-  switch (course) {
-    case 'prog-four':
-      courseName = prog_four.name
-      outputDirectory = prog_four.output_directory
-      spreadsheetId = prog_four.spreadsheet_id
-      range = prog_four.range
-      template = 'second-year'
-      break
-    case 'mobile':
-      courseName = mobile.name
-      outputDirectory = mobile.output_directory
-      spreadsheetId = mobile.spreadsheet_id
-      range = mobile.range
-      template = 'third-year'
-      break
-    case 'oosd':
-      courseName = oosd.name
-      outputDirectory = oosd.output_directory
-      spreadsheetId = oosd.spreadsheet_id
-      range = oosd.range
-      template = 'third-year'
-      break
-  }
+
   readFile('credentials.json', (err, content) => {
     if (err) return console.log(`Error loading client secret file: ${err}`)
     authorize(JSON.parse(content), runProcess)
@@ -123,33 +126,56 @@ const runProcess = (auth) => {
   sheets.spreadsheets.values.get(
     {
       spreadsheetId: spreadsheetId,
-      range: range,
+      range: spreadsheetRange,
     },
     (err, res) => {
       if (err) return console.log(`The API returned an error: ${err}`)
       const rows = res.data.values
       const studentData = []
+      const today = new Date()
+      const date = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`
       if (rows.length) {
         rows.map((row) => {
           let obj = {
-            course_name: courseName,
+            date: date,
             first_name: row[0],
             last_name: row[1],
-            email_address: row[2],
-            person_code: row[3],
-            overall_percentage: row[4],
-            overall_grade: row[5]
+            learner_id: row[2],
+            email_address: row[3],
+            points: row[4],
+            percentage: row[5],
+            grade: row[6],
+            crit_one: row[7],
+            crit_two: row[8]
           }
-          if (courseName == 'IN628 Programming 4') {
-            obj.checkpoint_percentage = row[6]
-            obj.software_percentage = row[8]
-            obj.exam_percentage = row[10]
-            studentData.push(obj)
-          } else {
-            obj.exam_percentage = row[6]
-            obj.software_percentage = row[8]
-            studentData.push(obj)
+
+          if (courseCode === 'id607001') {
+            obj['crit_three'] = row[9]
+            obj['comment_one'] = row[10]
+            obj['comment_two'] = row[11]
+            obj['comment_three'] = row[12]
+            if (assessmentNum === 'a1' || assessmentNum === 'a2') {
+              obj['crit_one_score'] = ((row[7] * 0.40) * 10).toFixed(2)
+              obj['crit_two_score'] = ((row[8] * 0.45) * 10).toFixed(2)
+              obj['crit_three_score'] = ((row[9] * 0.15) * 10).toFixed(2)
+            } else {
+              obj['crit_one_score'] = ((row[7] * 0.60) * 10).toFixed(2)
+              obj['crit_two_score'] = ((row[8] * 0.30) * 10).toFixed(2)
+              obj['crit_three_score'] = ((row[9] * 0.10) * 10).toFixed(2)
+            }
           }
+
+          if (courseCode === 'id737001') {
+            if (assessmentNum === 'a1') {
+              obj['crit_one_score'] = ((row[7] * 0.90) * 10).toFixed(2)
+              obj['crit_two_score'] = ((row[8] * 0.10) * 10).toFixed(2)
+            } else {
+              obj['crit_one_score'] = ((row[7] * 0.80) * 10).toFixed(2)
+              obj['crit_two_score'] = ((row[8] * 0.20) * 10).toFixed(2)
+            }
+          }
+
+          studentData.push(obj)
         })
       } else {
         console.log('No data found.')
@@ -158,14 +184,11 @@ const runProcess = (auth) => {
       prompt(processQuestion).then((answer) => {
         const { process } = answer
         switch (process) {
-          case 'generate pdf':
-            generatePDF(studentData)
+          case 'generate word docx':
+            generateWordDocx(studentData)
             break
-          case 'email pdf':
-            emailPDF(studentData)
-            break
-          case 'merge pdf':
-            mergePDF(studentData)
+          case 'email word docx':
+            emailWordDocx(studentData)
             break
         }
       })
@@ -173,33 +196,37 @@ const runProcess = (auth) => {
   )
 }
 
-const generatePDF = (studentData) => {
-  const html = readFileSync(`./public/${template}.html`, 'utf8')
+const generateWordDocx = (studentData) => {
+  const content = readFileSync(
+    resolve(__dirname, 'assessments', assessmentWordDocxName),
+    'binary'
+  )
+  const zip = new PZ(content)
+  const doc = new DocxTemp(zip)
+  doc.setData(studentData)
   studentData.map((data) => {
     const firstName = data.first_name.toLowerCase()
     const lastName = data.last_name.toLowerCase()
-    const filename = `./${outputDirectory}-${firstName}-${lastName}-results.pdf`
-    const document = {
-      html: html,
-      data: {
-        data: [data],
-      },
-      path: filename,
-    }
-    console.log(`Generating PDF file for ${firstName} ${lastName}.`.green)
-    pdf.create(document, options)
-    console.log(`PDF file generated for ${firstName} ${lastName}.`.blue)
+    doc.setData(data)
+    doc.render()
+    const buffer = doc.getZip().generate({ type: 'nodebuffer' })
+    console.log(`Generating file for ${firstName} ${lastName}.`.green)
+    writeFileSync(
+      resolve(__dirname, outputDirectory, `${firstName}-${lastName}.docx`),
+      buffer
+    )
+    console.log(`File generated for ${firstName} ${lastName}.`.blue)
   })
 }
 
-const emailPDF = (studentData) => {
+const emailWordDocx = (studentData) => {
   let interval = 7500
   studentData.map((data, idx) => {
     const firstName = data.first_name.toLowerCase()
     const lastName = data.last_name.toLowerCase()
-    const filename = `./${outputDirectory}/${outputDirectory}-${firstName}-${lastName}-final.pdf`
+    const filename = `./${outputDirectory}/${firstName}-${lastName}.docx`
     setTimeout((_) => {
-      console.log(`Emailing PDF file to ${firstName} ${lastName}.`.green)
+      console.log(`Emailing document file to ${firstName} ${lastName}.`.green)
       sendEmail({
         auth: {
           user: email,
@@ -207,9 +234,9 @@ const emailPDF = (studentData) => {
         },
         from: email,
         to: data.email_address.toLowerCase(),
-        subject: `${courseName} Final Results`,
+        subject: `${courseName} - ${assessmentName} Results`,
         html: `Kia ora ${data.first_name}, <br /> <br />
-        I have attached your final results for ${courseName}. Enjoy your break and stay safe. <br /> <br />
+        I have attached your ${assessmentName} assessment result. If there are any issues, please do not hesitate to ask.<br /> <br />
         Ngā mihi nui, <br /> <br />
         Grayson Orr`,
         attachments: [
@@ -219,34 +246,9 @@ const emailPDF = (studentData) => {
         ],
         onError: (err) => console.log(err),
         onSuccess: (_) => {
-          console.log(`PDF file emailed to ${firstName} ${lastName}.`.blue)
+          console.log(`File emailed to ${firstName} ${lastName}.`.blue)
         },
       })
     }, idx * interval)
   })
-}
-
-const mergePDF = (studentData) =>  {
-    let interval = 7500
-    studentData.map((data, idx) => {
-      const firstName = data.first_name.toLowerCase()
-      const lastName = data.last_name.toLowerCase()
-      setTimeout((_) => {
-        console.log(`Merging PDF file for ${firstName} ${lastName}.`.green)
-        pdfMerge(
-          [
-            `./${outputDirectory}/${outputDirectory}-${firstName}-${lastName}-results.pdf`,
-            `./${outputDirectory}/01-assessment-${firstName}-${lastName}.pdf`,
-            `./${outputDirectory}/02-assessment-${firstName}-${lastName}.pdf`,
-            `./${outputDirectory}/exam-${firstName}-${lastName}.pdf`,
-            `./${outputDirectory}/practicals-${firstName}-${lastName}.pdf`,
-          ],
-          `./${outputDirectory}-${firstName}-${lastName}-final.pdf`
-        )
-          .then((_) =>
-            console.log(`PDF files merged for ${firstName} ${lastName}.`.blue)
-          )
-          .catch((err) => console.log(err))
-      }, idx * interval)
-    })
 }

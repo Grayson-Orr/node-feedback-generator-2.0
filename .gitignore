@@ -106,6 +106,4 @@ dist
 credentials.json
 data.json
 token.json
-prog-four
-mobile
-oosd
+*.docx

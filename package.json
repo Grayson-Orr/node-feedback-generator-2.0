@@ -1,0 +1,27 @@
+{
+  "name": "grade-pdf-generator-2.0",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Grayson-Orr/grade-pdf-generator-2.0.git"
+  },
+  "author": "Grayson Orr",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Grayson-Orr/grade-pdf-generator-2.0/issues"
+  },
+  "homepage": "https://github.com/Grayson-Orr/grade-pdf-generator-2.0#readme",
+  "dependencies": {
+    "colors": "^1.4.0",
+    "docxtemplater": "^3.18.0",
+    "googleapis": "^39.2.0",
+    "inquirer": "^7.1.0",
+    "nodejs-nodemailer-outlook": "^1.2.3",
+    "pizzip": "^3.0.6"
+  }
+}

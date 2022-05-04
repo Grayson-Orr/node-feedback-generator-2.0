@@ -19,8 +19,8 @@
   "dependencies": {
     "colors": "^1.4.0",
     "docxtemplater": "^3.18.0",
-    "googleapis": "^39.2.0",
-    "inquirer": "^7.1.0",
+    "googleapis": "^100.0.0",
+    "inquirer": "^7.3.3",
     "nodejs-nodemailer-outlook": "^1.2.3",
     "pizzip": "^3.0.6"
   }

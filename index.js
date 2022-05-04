@@ -1,12 +1,12 @@
 const {
-  existsSync,
-  mkdirSync,
+  access,
+  mkdir,
   readFile,
   readFileSync,
   writeFile,
   writeFileSync,
 } = require('fs')
-const { resolve } = require('path')
+const { join } = require('path')
 const readline = require('readline')
 require('colors')
 const { google } = require('googleapis')
@@ -37,7 +37,7 @@ const processQuestion = {
   type: 'list',
   name: 'process',
   message: 'Choose one of the following processes:',
-  choices: ['generate word docx', 'email pdf'],
+  choices: ['generate word docx', 'email word docx'],
 }
 
 const {
@@ -47,8 +47,6 @@ const {
 
 let courseCode
 let assessmentNum
-
-let outputDirectory
 let courseName
 let spreadsheetId
 let spreadsheetRange
@@ -61,20 +59,28 @@ prompt([courseQuestion, assessmentQuestion]).then((answer) => {
   courseCode = course
   assessmentNum = assessment
 
-  const { output_directory, course_name, spreadsheet_id } = data[courseCode]
+  const { course_name, spreadsheet_id } = data[courseCode]
   const { assessment_name, spreadsheet_range, word_docx_name } = data[courseCode][assessmentNum]
 
-  outputDirectory = output_directory
   courseName = course_name
   spreadsheetId = spreadsheet_id
   spreadsheetRange = spreadsheet_range
   assessmentName = assessment_name
   assessmentWordDocxName = word_docx_name
+    
+  const courseDirectory = join(__dirname, courseCode, assessmentNum)
 
-  if (!existsSync(course)) mkdirSync(course)
+  access(courseDirectory, (error) => {
+    if (error) {
+      mkdir(courseDirectory, { recursive: true }, (error) => {
+        if (error) return console.error(error)
+        console.log(`${courseCode}/${assessmentNum} directories successfully created`.green)
+      })
+    }
+  })
 
-  readFile('credentials.json', (err, content) => {
-    if (err) return console.log(`Error loading client secret file: ${err}`)
+  readFile('credentials.json', (error, content) => {
+    if (error) return console.log(`Error loading client secret file: ${error}`)
     authorize(JSON.parse(content), runProcess)
   })
 })
@@ -87,8 +93,8 @@ const authorize = (credentials, callback) => {
     redirect_uris[0]
   )
 
-  readFile(TOKEN_PATH, (err, token) => {
-    if (err) return getNewToken(oAuth2Client, callback)
+  readFile(TOKEN_PATH, (error, token) => {
+    if (error) return getNewToken(oAuth2Client, callback)
     oAuth2Client.setCredentials(JSON.parse(token))
     callback(oAuth2Client)
   })
@@ -106,14 +112,14 @@ const getNewToken = (oAuth2Client, callback) => {
   })
   rl.question('Enter the code from that page here: ', (code) => {
     rl.close()
-    oAuth2Client.getToken(code, (err, token) => {
-      if (err)
+    oAuth2Client.getToken(code, (error, token) => {
+      if (error)
         return console.error(
-          `Error while trying to retrieve access token ${err}`
+          `Error while trying to retrieve access token ${error}`
         )
       oAuth2Client.setCredentials(token)
-      writeFile(TOKEN_PATH, JSON.stringify(token), (err) => {
-        if (err) return console.error(err)
+      writeFile(TOKEN_PATH, JSON.stringify(token), (error) => {
+        if (error) return console.error(error)
         console.log(`Token stored to ${TOKEN_PATH}`)
       })
       callback(oAuth2Client)
@@ -128,8 +134,8 @@ const runProcess = (auth) => {
       spreadsheetId: spreadsheetId,
       range: spreadsheetRange,
     },
-    (err, res) => {
-      if (err) return console.log(`The API returned an error: ${err}`)
+    (error, res) => {
+      if (error) return console.log(`The API returned an error: ${error}`)
       const rows = res.data.values
       const studentData = []
       const today = new Date()
@@ -198,9 +204,10 @@ const runProcess = (auth) => {
 
 const generateWordDocx = (studentData) => {
   const content = readFileSync(
-    resolve(__dirname, 'assessments', assessmentWordDocxName),
+    join(__dirname, 'assessments', assessmentWordDocxName),
     'binary'
   )
+  
   const zip = new PZ(content)
   const doc = new DocxTemp(zip)
   doc.setData(studentData)
@@ -212,7 +219,7 @@ const generateWordDocx = (studentData) => {
     const buffer = doc.getZip().generate({ type: 'nodebuffer' })
     console.log(`Generating file for ${firstName} ${lastName}.`.green)
     writeFileSync(
-      resolve(__dirname, outputDirectory, `${firstName}-${lastName}.docx`),
+      join(__dirname, courseCode, assessmentNum, `${firstName}-${lastName}.docx`),
       buffer
     )
     console.log(`File generated for ${firstName} ${lastName}.`.blue)
@@ -224,7 +231,7 @@ const emailWordDocx = (studentData) => {
   studentData.map((data, idx) => {
     const firstName = data.first_name.toLowerCase()
     const lastName = data.last_name.toLowerCase()
-    const filename = `./${outputDirectory}/${firstName}-${lastName}.docx`
+    
     setTimeout((_) => {
       console.log(`Emailing document file to ${firstName} ${lastName}.`.green)
       sendEmail({
@@ -241,10 +248,10 @@ const emailWordDocx = (studentData) => {
         Grayson Orr`,
         attachments: [
           {
-            path: filename,
+            path: join(__dirname, courseCode, assessmentNum, `${firstName}-${lastName}.docx`),
           },
         ],
-        onError: (err) => console.log(err),
+        onError: (error) => console.log(error),
         onSuccess: (_) => {
           console.log(`File emailed to ${firstName} ${lastName}.`.blue)
         },
